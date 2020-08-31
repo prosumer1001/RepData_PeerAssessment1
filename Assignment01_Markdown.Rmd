@@ -1,0 +1,136 @@
+---
+title: 'Reproducible Research: Peer Graded Assignment 01'
+author: "N.T."
+date: "8/9/2020"
+output: 
+        html_document:
+        toc: true
+        keep_md: true
+---
+# Introduction
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The data is downloaded from the course website at `https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip`.
+
+### Download data
+```{r dataImport, echo = TRUE, cache = TRUE}
+library(rio)
+filename <- "activity.zip"
+```
+
+### If the file named `activity.zip` is not in the working directory, then download it and extract it.
+
+```{r unzipData, echo = TRUE, cache = TRUE}
+if (!file.exists("filename")){
+        fileURL <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+        download.file(fileURL, filename)
+}
+unzip(filename)
+```
+
+### Load data and process date data.
+
+```{r loadProcess, echo = TRUE, cache = TRUE}
+data <- import("activity.csv")
+data$date <- as.Date(data$date, format = "%Y-%m-%d")
+```
+
+
+## The data
+
+The variables included in dataset are:
+
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* date: The date on which the measurement was taken in YYYY-MM-DD format
+* interval: Identifier for the 5-minute interval in which measurement was taken
+
+# SUBMISSION
+
+## Code for reading in the dataset and/or processing the data.
+```{r data, echo = TRUE, cache = TRUE}
+data <- read.csv("activity.csv")
+```
+
+## Histogram of the total number of steps taken each day.
+```{r histogram01, echo = TRUE, cache = TRUE}
+stepsPerDay <- aggregate(steps ~ date, data, sum)
+hist(stepsPerDay$steps, main = paste("Total Steps Each Day"), col="blue", xlab="Number of Steps")
+```
+
+## Mean and median number of steps taken each day.
+```{r meanMedian, echo = TRUE, cache = TRUE}
+stepsPerDay <- aggregate(steps ~ date, data, sum)
+meanSteps <- mean(stepsPerDay$steps)
+medianSteps <- median(stepsPerDay$steps)
+sprintf("MEAN of steps taken each day = %.3f", meanSteps)
+sprintf("MEDIAN of steps taken each day = %.3f", medianSteps)
+```
+
+## Time series plot of the average number of steps taken.
+```{r timeSeries, echo = TRUE, cache = TRUE}
+stepsPerInterval <- aggregate(steps ~ interval, data, mean)
+with(stepsPerInterval, plot(interval, steps, type = "l", xlab = "Step Interval", ylab = "Number of Steps (Frequency)", main = "Average Number of Steps per Day by Interval", col = "blue"))
+```
+
+## The 5-minute interval that, on average, contains the maximum number of steps.
+```{r 5minuteInterval, echo = TRUE, cache = TRUE}
+maxInterval <- stepsPerInterval[which.max(stepsPerInterval$steps),1]
+sprintf("MAXIMUM number of steps in 5-minute interval = %.0f", maxInterval)
+```
+
+## Code to describe and show a strategy for imputing missing data.
+```{r imputingDataStrategy, echo = TRUE, cache = TRUE}
+incompleteData <- sum(!complete.cases(data))
+sprintf("MISSING data = %.0f", incompleteData)
+```
+
+The imputation strategy uses the average value for that missing interval. For example, at "date"=="2012-10-01" the value 0 is NA, so the value 1.7169811 will be used as steps. This value came from the data set **stepsPerInterval**.
+
+```{r imputedData, echo = TRUE, cache = TRUE}
+imputedData <- transform(data, steps = ifelse(is.na(data$steps), stepsPerInterval$steps[match(data$interval, stepsPerInterval$interval)], data$steps))
+```
+
+## Histogram of the total number of steps taken each day after missing values are imputed
+```{r histogram02, echo = TRUE, cache = TRUE}
+stepsPerDay_imputed <- aggregate(steps ~ date, imputedData, sum)
+hist(stepsPerDay_imputed$steps, main = paste("Total Steps Each Day"), col="blue", xlab="Number of Steps")
+hist(stepsPerDay$steps, main = paste("Total Steps Each Day"), col="red", xlab="Number of Steps", add=T)
+legend("topright", c("Imputed", "Non-imputed"), col=c("blue", "red"), lwd=10)
+```
+
+### MEAN difference
+```{r meanDifference, echo = TRUE, cache = TRUE}
+meanSteps <- mean(stepsPerDay$steps)
+meanSteps_imputed <- mean(stepsPerDay_imputed$steps)
+sprintf("MEAN of steps taken each day = %.3f", meanSteps)
+sprintf("MEAN of steps taken each day with IMPUTED data = %.3f", meanSteps_imputed)
+sprintf("The difference is %.3f ", meanSteps_imputed-meanSteps)
+```
+
+### MEDIAN difference
+```{r medianDifference, echo = TRUE, cache = TRUE}
+medianSteps <- median(stepsPerDay$steps)
+medianSteps_imputed <- median(stepsPerDay_imputed$steps)
+sprintf("MEDIAN of steps taken each day = %.3f", medianSteps)
+sprintf("MEDIAN of steps taken each day with IMPUTED data = %.3f", medianSteps_imputed)
+sprintf("The difference is %.3f ", medianSteps_imputed-medianSteps)
+```
+
+### TOTAL steps difference
+```{r totalStepsDiff, echo = TRUE, cache = TRUE}
+total <- sum(stepsPerDay$steps)
+imputedTotal <- sum(stepsPerDay_imputed$steps)
+sprintf("TOTAL of steps = %.3f", total)
+sprintf("TOTAL of steps with IMPUTED data = %.3f", imputedTotal)
+sprintf("The difference is %.3f ", imputedTotal-total)
+```
+
+## Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+```{r panelPlot01, echo = TRUE, cache = TRUE}
+weekend_days_set <- c("Saturday", "Sunday")
+imputedData$dow = as.factor(ifelse(is.element(weekdays(as.Date(imputedData$date)),weekend_days_set), "Weekend", "Weekday"))
+stepsPerInterval_imputed <- aggregate(steps ~ interval + dow, imputedData, mean)
+library(lattice)
+xyplot(stepsPerInterval_imputed$steps ~ stepsPerInterval_imputed$interval|stepsPerInterval_imputed$dow, main="Average Steps per Day by Interval",xlab="Interval", ylab="Steps",layout=c(1,2), type="l")
+```
